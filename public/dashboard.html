@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Royal Torque — Sales CRM</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>👑</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">
+      <img src="assets/logo.png" alt="logo">
+      <span class="gold-text">The Royal<br>Torque</span>
+    </div>
+    <button class="nav-item active" data-view="dashboard">📊 Dashboard</button>
+    <button class="nav-item" data-view="myleads">🧾 My Leads</button>
+    <button class="nav-item" data-view="allleads" id="allLeadsNav" style="display:none">🗂️ All Leads</button>
+    <button class="nav-item" data-view="team" id="teamNav" style="display:none">👥 Team / Admin</button>
+    <div class="sidebar-foot">
+      <b id="whoName">—</b>
+      <span id="whoMeta">—</span>
+      <button class="logout-btn" id="logoutBtn">Log Out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="viewTitle">Dashboard</h1>
+        <div class="sub" id="viewSub">Overview of your sales pipeline</div>
+      </div>
+      <button class="btn btn-gold" id="addLeadBtn">+ Add Lead</button>
+    </div>
+
+    <div id="viewRoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="modalRoot"></div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>

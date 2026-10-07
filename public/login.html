@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Royal Torque — CRM Login</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>👑</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="assets/logo-large.png" alt="The Royal Torque">
+      <h1>Sales CRM — Sign In</h1>
+      <form id="loginForm">
+        <label for="employeeId">Employee ID</label>
+        <input id="employeeId" type="text" inputmode="numeric" placeholder="e.g. 2310" autocomplete="username" required>
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+        <button class="login-btn" type="submit">Log In</button>
+        <div class="login-err" id="loginErr"></div>
+      </form>
+    </div>
+  </div>
+
+<script>
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const employeeId = document.getElementById('employeeId').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl = document.getElementById('loginErr');
+    errEl.textContent = '';
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Login failed';
+        return;
+      }
+      window.location.href = '/dashboard.html';
+    } catch (err) {
+      errEl.textContent = 'Could not reach the server. Is it running?';
+    }
+  });
+</script>
+</body>
+</html>
