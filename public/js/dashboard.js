@@ -23,7 +23,7 @@ function el(tag, attrs = {}, children = []) {
   return n;
 }
 function fmtMoney(n) {
-  return '₹' + Number(n || 0).toLocaleString('en-IN');
+  return '$' + Number(n || 0).toLocaleString('en-US');
 }
 function fmtDate(iso) {
   const d = new Date(iso);
