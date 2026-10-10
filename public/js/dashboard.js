@@ -249,6 +249,34 @@ async function renderDashboard() {
   root.appendChild(pipelinePanel);
   root.appendChild(regionPanel);
 
+  // Recent leads are visible directly on the dashboard; clicking a row opens details.
+  try {
+    const leadData = await api('/api/leads' + (CURRENT_USER.role === 'admin' ? '?all=1' : ''));
+    LEADS_CACHE = leadData.leads || [];
+    const recent = [...LEADS_CACHE].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)).slice(0, 8);
+    const recentPanel = el('div', { class: 'panel' }, [
+      el('h2', {}, 'Recent Leads'),
+      el('p', { class: 'muted-copy' }, 'Select any lead to view its complete details.'),
+    ]);
+    if (!recent.length) recentPanel.appendChild(el('div', { class: 'empty' }, 'No leads yet. Add your first lead to get started.'));
+    else {
+      const rows = recent.map((l) => {
+        const row = el('tr', { class: 'clickable-lead-row', tabindex: '0', role: 'button', 'aria-label': `View details for ${l.name}`, onclick: () => openLeadDetailsModal(l), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLeadDetailsModal(l); } } }, [
+          el('td', {}, el('button', { class: 'lead-name-link', onclick: (e) => { e.stopPropagation(); openLeadDetailsModal(l); } }, l.name || 'Unnamed lead')),
+          el('td', {}, l.company || '—'),
+          el('td', {}, el('span', { class: 'badge badge-' + String(l.status || 'New').replace(/\s+/g, '') }, l.status || 'New')),
+          el('td', {}, fmtMoney(l.value, l.currency)),
+          el('td', {}, l.region || '—'),
+        ]);
+        return row;
+      });
+      recentPanel.appendChild(el('table', {}, [el('thead', {}, el('tr', {}, ['Lead', 'Company', 'Status', 'Estimated Value', 'Region'].map(x => el('th', {}, x)))), el('tbody', {}, rows)]));
+    }
+    root.appendChild(recentPanel);
+  } catch (err) {
+    // Keep the dashboard's core statistics available if the lead list request fails.
+  }
+
   if (stats.byUser) {
     const rows = Object.entries(stats.byUser).map(([id, u]) =>
       el('tr', {}, [
@@ -331,7 +359,7 @@ function renderLeadsTable(table, all) {
     rows.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     rows.forEach((l) => {
       const website = normalizeExternalUrl(l.website), linkedin = normalizeExternalUrl(l.linkedin);
-      const nameLink = el('button', { class: 'lead-name-link', onclick: () => openLeadModal(l), title: 'Open lead details' }, l.name);
+      const nameLink = el('button', { class: 'lead-name-link', onclick: (e) => { e.stopPropagation(); openLeadDetailsModal(l); }, title: 'View lead details' }, l.name);
       const websiteCell = website ? el('a', { href: website, target: '_blank', rel: 'noopener noreferrer', class: 'table-link' }, displayHost(l.website)) : '—';
       const convo = el('div', { class: 'convo-cell' }, [l.email ? el('a', { href: `mailto:${l.email}`, class: 'table-link' }, 'Email') : '—', linkedin ? el('a', { href: linkedin, target: '_blank', rel: 'noopener noreferrer', class: 'table-link' }, 'LinkedIn') : null]);
       const cells = [
@@ -340,9 +368,14 @@ function renderLeadsTable(table, all) {
         el('td', {}, l.email ? el('a', { href: `mailto:${l.email}`, class: 'table-link' }, l.email) : '—'),
         el('td', {}, l.region || '—'), el('td', {}, fmtMoney(l.value, l.currency)),
         el('td', {}, el('span', { class: 'badge badge-' + l.status.replace(/\s+/g, '') }, l.status)), el('td', {}, convo),
-        el('td', {}, el('div', { class: 'row-actions' }, [el('button', { class: 'icon-btn', onclick: () => openLeadModal(l) }, 'Edit'), el('button', { class: 'icon-btn', onclick: () => deleteLead(l) }, 'Delete')]))
+        el('td', {}, el('div', { class: 'row-actions' }, [el('button', { class: 'icon-btn', onclick: (e) => { e.stopPropagation(); openLeadModal(l); } }, 'Edit'), el('button', { class: 'icon-btn', onclick: (e) => { e.stopPropagation(); deleteLead(l); } }, 'Delete')]))
       ];
-      tbody.appendChild(el('tr', {}, cells));
+      tbody.appendChild(el('tr', {
+        class: 'clickable-lead-row', tabindex: '0', role: 'button',
+        'aria-label': `View details for ${l.name}`,
+        onclick: (e) => { if (e.target.closest('button, a, input, select, textarea')) return; openLeadDetailsModal(l); },
+        onkeydown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button, a, input, select, textarea')) { e.preventDefault(); openLeadDetailsModal(l); } },
+      }, cells));
     });
   }
   table.appendChild(tbody);
@@ -357,6 +390,68 @@ async function deleteLead(lead) {
   } catch (e) {
     toast(e.message, true);
   }
+}
+
+// ---------- lead details popup ----------
+function openLeadDetailsModal(lead) {
+  if (!lead) return;
+  const root = $('#modalRoot');
+  const safeText = (value) => value === null || value === undefined || String(value).trim() === '' ? '—' : String(value);
+  const addDetail = (label, value, link) => {
+    const content = link && value ? el('a', { class: 'detail-link', href: link, ...(link.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {}) }, String(value)) : safeText(value);
+    return el('div', { class: 'detail-item' }, [el('div', { class: 'detail-label' }, label), el('div', { class: 'detail-value' }, content)]);
+  };
+  const website = normalizeExternalUrl(lead.website);
+  const linkedin = normalizeExternalUrl(lead.linkedin);
+  const contactSection = el('section', { class: 'details-section' }, [
+    el('h3', {}, 'Contact Information'),
+    el('div', { class: 'details-grid' }, [
+      addDetail('Name', lead.name), addDetail('Company', lead.company),
+      addDetail('Website', website ? displayHost(lead.website) : lead.website, website),
+      addDetail('Phone', lead.phone, lead.phone ? `tel:${lead.phone}` : ''),
+      addDetail('Email', lead.email, lead.email ? `mailto:${lead.email}` : ''),
+      addDetail('LinkedIn', linkedin ? 'Open LinkedIn profile' : lead.linkedin, linkedin),
+    ])
+  ]);
+  const leadSection = el('section', { class: 'details-section' }, [
+    el('h3', {}, 'Lead Details'),
+    el('div', { class: 'details-grid' }, [
+      addDetail('Status', lead.status), addDetail('Region', lead.region),
+      addDetail('Estimated Value', `${fmtMoney(lead.value, lead.currency)}${lead.currency ? ` (${lead.currency})` : ''}`),
+      addDetail('Source', lead.source), addDetail('Service Interest', lead.serviceInterest),
+      addDetail('Assigned To', lead.ownerName || lead.assignedTo || lead.ownerId),
+      addDetail('Demo / Follow-up', lead.demoDate ? new Date(lead.demoDate).toLocaleString('en-IN') : ''),
+      addDetail('Created', lead.createdAt ? new Date(lead.createdAt).toLocaleString('en-IN') : ''),
+      addDetail('Last Updated', lead.updatedAt ? new Date(lead.updatedAt).toLocaleString('en-IN') : ''),
+    ])
+  ]);
+  const notesSection = el('section', { class: 'details-section' }, [
+    el('h3', {}, 'Conversation & Notes'),
+    el('div', { class: 'detail-notes' }, safeText(lead.notes)),
+  ]);
+  const activitySection = el('section', { class: 'details-section' }, [
+    el('h3', {}, 'Interaction History'),
+    lead.activity?.length ? el('ul', { class: 'activity-list detail-activity-list' }, [...lead.activity].reverse().map((a) =>
+      el('li', {}, [el('b', {}, safeText(a.by) + ': '), safeText(a.note), ' — ', a.date ? new Date(a.date).toLocaleString('en-IN') : 'Date unavailable'])
+    )) : el('div', { class: 'detail-notes muted-copy' }, 'No interaction history recorded yet.'),
+  ]);
+  const modal = el('div', { class: 'overlay', role: 'presentation', onclick: (e) => { if (e.target.classList.contains('overlay')) closeModal(); } }, [
+    el('div', { class: 'modal lead-details-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'leadDetailsTitle' }, [
+      el('div', { class: 'details-header' }, [
+        el('div', {}, [el('h2', { id: 'leadDetailsTitle' }, safeText(lead.name)), el('div', { class: 'muted-copy' }, safeText(lead.company))]),
+        el('button', { class: 'icon-btn details-close', 'aria-label': 'Close lead details', onclick: closeModal }, '✕'),
+      ]),
+      el('div', { class: 'details-status-line' }, [el('span', { class: 'badge badge-' + String(lead.status || 'New').replace(/\s+/g, '') }, safeText(lead.status || 'New'))]),
+      contactSection, leadSection, notesSection, activitySection,
+      el('div', { class: 'modal-actions' }, [
+        el('button', { class: 'btn btn-ghost', onclick: closeModal }, 'Close'),
+        el('button', { class: 'btn btn-gold', onclick: () => openLeadModal(lead) }, 'Edit Lead'),
+      ]),
+    ])
+  ]);
+  root.innerHTML = '';
+  root.appendChild(modal);
+  modal.querySelector('.details-close')?.focus();
 }
 
 // ---------- lead modal ----------
@@ -441,6 +536,10 @@ function closeModal() {
   $('#modalRoot').innerHTML = '';
   EDITING_LEAD = null;
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#modalRoot')?.firstElementChild) closeModal();
+});
 
 async function saveLead() {
   const payload = {
