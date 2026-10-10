@@ -4,6 +4,25 @@ A sales CRM: login dashboard, admin user management, and lead tracking for your 
 
 > **Changed from the local-file version:** data used to be saved in a local `data/db.json` file. That approach can't survive on free cloud hosting without a paid persistent disk, so it's now a small free cloud database instead — still free, still permanent, just not a file on your laptop. Locally, this also now needs that same database (see step 2) rather than working offline out of the box.
 
+## 0. Applying this update from the terminal
+
+If your CRM is already running locally and deployed on Render, here is exactly what to run, from inside your `royal-torque-crm` folder, to pick up the new region/currency/assign/bulk-upload features:
+
+```
+npm install
+npm start
+```
+
+`npm install` pulls in the two new packages this update needs (`multer` for file uploads, `xlsx` for reading CSV/Excel). `npm start` runs the server — on startup it automatically adds the new `region` and `currency` columns to your existing Neon database (your existing leads are kept, and default to Region "India" until you edit them). Test at `http://localhost:4000`, then push it live:
+
+```
+git add .
+git commit -m "Add region/currency, lead assignment, and CSV/XLSX bulk upload"
+git push
+```
+
+Render picks up the push automatically and redeploys within a minute or two — no dashboard clicking needed. If `git push` asks for a username/password again, use your GitHub username and a Personal Access Token as the password (same as before).
+
 ## 1. One-time: install Node.js
 
 Get it from [nodejs.org](https://nodejs.org) (version 18+, the "LTS" installer). Skip if already installed.
@@ -70,5 +89,20 @@ Log in as admin → **Team / Admin** in the sidebar → enter an Employee ID (yo
 - Admin: view all leads across the team, plus per-person performance
 - Lead pipeline stages: New → Contacted → Qualified → Proposal → Won / Lost
 - Per-lead activity log (auto-logs status changes, plus manual notes)
-- Search and filter leads by status
-- Dashboard stats: total leads, open pipeline value, won value, breakdown by stage and by team member
+- Search and filter leads by status and by region
+- **Region-aware currency**: every lead has a Region (India, United States, UK, UAE, Saudi Arabia, Australia, Canada, Singapore, EU, or Other). The deal value is automatically shown in that region's currency (₹, $, £, €, etc.) everywhere in the app — no manual currency picking needed. Dashboard totals are grouped per currency instead of wrongly adding different currencies together.
+- **Admin: assign leads to any team member** — the Add/Edit Lead form has an "Assign To" dropdown (admin only); regular users' own leads always stay theirs.
+- **Admin: bulk-upload leads from CSV or Excel** — a dedicated "Bulk Upload" page where you pick a Region and a team member to assign the whole file to, then upload a `.csv`/`.xlsx` export from your scraper. Column headers are matched flexibly (e.g. "Name", "Lead Name" or "Contact Name" all work), and a row can include its own "Region" column to override the batch default. Rows missing a name are skipped and listed so nothing silently vanishes.
+- Dashboard stats: total leads, open pipeline value, won value (per currency), breakdown by stage, by region, and by team member
+
+## 8. Adding a lead with a region, and assigning it (admin)
+
+Click **+ Add Lead** → fill in the lead → pick its **Region** (the Deal Value field relabels itself to that region's currency automatically) → as admin, pick **Assign To** to hand it to a specific team member, or leave it on your own name to keep it. Save.
+
+## 9. Bulk-uploading leads from your scraper (admin)
+
+1. Export your scraped leads as `.csv` or `.xlsx`. Make sure there's at least a "Name" (or "Lead Name"/"Contact Name") column — everything else (Company, Phone, Email, Source, Notes, Value, Region) is optional.
+2. In the CRM, open **Bulk Upload** in the sidebar.
+3. Pick the **Region** for this batch (e.g. India) and the **team member** to assign all these leads to.
+4. Choose your file and click **Upload & Import**. You'll see how many rows were imported and a list of any skipped rows (and why).
+5. If your file already has a per-row "Region" column (e.g. some leads are India, some are US), that column wins over the batch Region you picked — handy for a mixed-region export in one file.

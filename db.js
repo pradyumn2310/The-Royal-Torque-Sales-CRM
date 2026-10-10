@@ -46,6 +46,11 @@ async function init() {
   // but this is a harmless no-op if it's already available).
   await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).catch(() => {});
 
+  // Migration: add region/currency to leads created by an earlier version of this app.
+  // Safe to run every boot — IF NOT EXISTS makes it a no-op once applied.
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT 'India';`);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'INR';`);
+
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM users');
   if (rows[0].n === 0) {
     const hash = bcrypt.hashSync('Princy!@_2123', 10);
@@ -93,14 +98,43 @@ async function getLead(id) {
 }
 async function createLead(lead) {
   const { rows } = await pool.query(
-    `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity, region, currency)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
     [
       lead.ownerId, lead.ownerName, lead.name, lead.company, lead.phone, lead.email,
       lead.status, lead.value, lead.source, lead.notes, JSON.stringify(lead.activity),
+      lead.region, lead.currency,
     ]
   );
   return rows[0];
+}
+// Insert many leads in one go (used by the CSV/XLSX bulk upload). Runs inside
+// a single transaction so a mid-batch failure doesn't leave a half-imported file.
+async function createLeadsBulk(leads) {
+  const client = await pool.connect();
+  const inserted = [];
+  try {
+    await client.query('BEGIN');
+    for (const lead of leads) {
+      const { rows } = await client.query(
+        `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity, region, currency)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+        [
+          lead.ownerId, lead.ownerName, lead.name, lead.company, lead.phone, lead.email,
+          lead.status, lead.value, lead.source, lead.notes, JSON.stringify(lead.activity),
+          lead.region, lead.currency,
+        ]
+      );
+      inserted.push(rows[0]);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return inserted;
 }
 async function updateLead(id, fields) {
   const current = await getLead(id);
@@ -108,11 +142,13 @@ async function updateLead(id, fields) {
   const merged = { ...current, ...fields };
   const { rows } = await pool.query(
     `UPDATE leads SET name=$1, company=$2, phone=$3, email=$4, status=$5, value=$6,
-       source=$7, notes=$8, activity=$9, updated_at=now()
-     WHERE id=$10 RETURNING *`,
+       source=$7, notes=$8, activity=$9, region=$10, currency=$11,
+       owner_id=$12, owner_name=$13, updated_at=now()
+     WHERE id=$14 RETURNING *`,
     [
       merged.name, merged.company, merged.phone, merged.email, merged.status, merged.value,
-      merged.source, merged.notes, JSON.stringify(merged.activity), id,
+      merged.source, merged.notes, JSON.stringify(merged.activity), merged.region, merged.currency,
+      merged.owner_id, merged.owner_name, id,
     ]
   );
   return rows[0];
@@ -125,5 +161,5 @@ async function deleteLead(id) {
 module.exports = {
   init,
   getUserByEmployeeId, listUsers, createUser, deleteUser,
-  listLeads, getLead, createLead, updateLead, deleteLead,
+  listLeads, getLead, createLead, createLeadsBulk, updateLead, deleteLead,
 };

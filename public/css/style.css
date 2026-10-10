@@ -28,7 +28,7 @@ input,select,textarea{font-family:inherit;}
 .sidebar{width:220px; background:var(--panel); border-right:1px solid var(--border); padding:22px 16px; display:flex; flex-direction:column; flex-shrink:0;}
 .sidebar .brand{display:flex; align-items:center; gap:10px; margin-bottom:28px;}
 .sidebar .brand img{width:38px; height:auto;}
-.sidebar .brand span{font-weight:700; font-size:.95rem; line-height:1.2;}
+.sidebar .brand span{font-family:'Cinzel',serif; font-weight:700; font-size:1rem; line-height:1.25; letter-spacing:.02em;}
 .nav-item{display:block; padding:10px 12px; border-radius:8px; color:var(--muted); text-decoration:none; font-size:.9rem; font-weight:600; margin-bottom:4px; cursor:pointer; border:none; background:none; text-align:left; width:100%;}
 .nav-item:hover{background:var(--panel2); color:var(--text);}
 .nav-item.active{background:linear-gradient(135deg,rgba(245,214,122,.15),rgba(212,175,55,.1)); color:var(--gold2); border:1px solid var(--border);}
@@ -92,6 +92,16 @@ tr:last-child td{border-bottom:none;}
 .toast{position:fixed; bottom:22px; right:22px; background:var(--panel); border:1px solid var(--gold); color:var(--text); padding:12px 18px; border-radius:9px; font-size:.85rem; z-index:100; opacity:0; transform:translateY(10px); transition:.25s;}
 .toast.show{opacity:1; transform:translateY(0);}
 .toast.err{border-color:var(--red);}
+
+.upload-box{border:2px dashed var(--border); border-radius:10px; padding:24px; text-align:center; background:var(--panel2);}
+.upload-box.drag{border-color:var(--gold);}
+.upload-box input[type=file]{color:var(--muted); font-size:.85rem;}
+.upload-result{margin-top:16px; font-size:.85rem;}
+.upload-result .ok-line{color:var(--green); font-weight:700; margin-bottom:6px;}
+.upload-result .skip-list{list-style:none; margin:8px 0 0; padding:0; max-height:160px; overflow-y:auto;}
+.upload-result .skip-list li{color:var(--muted); padding:3px 0; font-size:.8rem;}
+.currency-line{font-size:.95rem; margin-top:2px;}
+.currency-line + .currency-line{margin-top:1px;}
 
 @media (max-width:760px){
   .app{flex-direction:column;}
