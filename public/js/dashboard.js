@@ -351,7 +351,8 @@ function renderLeadsTable(table, all) {
   });
 
   table.innerHTML = '';
-  const headCols = ['Name', 'Company Name', 'Website', 'Phone Number', 'Email', 'Region', 'Estimated Value', 'Lead Status', 'Convo', 'Actions'];
+  // My Leads is intentionally a compact name/company list; click a row to see the full details popup.
+  const headCols = all ? ['Name', 'Company Name', 'Website', 'Phone Number', 'Email', 'Region', 'Estimated Value', 'Lead Status', 'Convo', 'Actions'] : ['Name', 'Company Name'];
   table.appendChild(el('thead', {}, el('tr', {}, headCols.map((h) => el('th', {}, h)))));
   const tbody = el('tbody', {});
   if (!rows.length) tbody.appendChild(el('tr', {}, el('td', { colspan: String(headCols.length), class: 'empty' }, 'No leads found')));
@@ -362,14 +363,14 @@ function renderLeadsTable(table, all) {
       const nameLink = el('button', { class: 'lead-name-link', onclick: (e) => { e.stopPropagation(); openLeadDetailsModal(l); }, title: 'View lead details' }, l.name);
       const websiteCell = website ? el('a', { href: website, target: '_blank', rel: 'noopener noreferrer', class: 'table-link' }, displayHost(l.website)) : '—';
       const convo = el('div', { class: 'convo-cell' }, [l.email ? el('a', { href: `mailto:${l.email}`, class: 'table-link' }, 'Email') : '—', linkedin ? el('a', { href: linkedin, target: '_blank', rel: 'noopener noreferrer', class: 'table-link' }, 'LinkedIn') : null]);
-      const cells = [
+      const cells = all ? [
         el('td', {}, nameLink), el('td', {}, l.company || '—'), el('td', {}, websiteCell),
         el('td', {}, l.phone ? el('a', { href: `tel:${l.phone}`, class: 'table-link' }, l.phone) : '—'),
         el('td', {}, l.email ? el('a', { href: `mailto:${l.email}`, class: 'table-link' }, l.email) : '—'),
         el('td', {}, l.region || '—'), el('td', {}, fmtMoney(l.value, l.currency)),
-        el('td', {}, el('span', { class: 'badge badge-' + l.status.replace(/\s+/g, '') }, l.status)), el('td', {}, convo),
+        el('td', {}, el('span', { class: 'badge badge-' + String(l.status || 'New').replace(/\s+/g, '') }, l.status || 'New')), el('td', {}, convo),
         el('td', {}, el('div', { class: 'row-actions' }, [el('button', { class: 'icon-btn', onclick: (e) => { e.stopPropagation(); openLeadModal(l); } }, 'Edit'), el('button', { class: 'icon-btn', onclick: (e) => { e.stopPropagation(); deleteLead(l); } }, 'Delete')]))
-      ];
+      ] : [el('td', {}, nameLink), el('td', {}, l.company || '—')];
       tbody.appendChild(el('tr', {
         class: 'clickable-lead-row', tabindex: '0', role: 'button',
         'aria-label': `View details for ${l.name}`,
