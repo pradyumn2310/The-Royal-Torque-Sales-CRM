@@ -3,6 +3,8 @@ const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const db = require('./db');
@@ -10,7 +12,10 @@ const { REGIONS, DEFAULT_REGION, regionByName, currencyForRegion, isValidRegion 
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }); // 8MB cap
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const proposalDir = path.join(__dirname, 'data', 'proposals');
+fs.mkdirSync(proposalDir, { recursive: true });
+const proposalUpload = multer({ storage: multer.diskStorage({ destination: (_req, _file, cb) => cb(null, proposalDir), filename: (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).slice(0,12)}`) }), limits: { fileSize: 20 * 1024 * 1024 } }); // 8MB cap
 
 app.use(express.json());
 app.use(
@@ -50,6 +55,10 @@ function publicLead(l) {
     company: l.company,
     phone: l.phone,
     email: l.email,
+    website: l.website || '',
+    linkedin: l.linkedin || '',
+    serviceInterest: l.service_interest || '',
+    demoDate: l.demo_date || null,
     status: l.status,
     value: Number(l.value),
     source: l.source,
@@ -133,7 +142,7 @@ app.get('/api/regions', requireAuth, (req, res) => {
 });
 
 // ---------- leads ----------
-const LEAD_STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
+const LEAD_STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal', 'Demo Booked', 'Demo Completed', 'No Show', 'Won', 'Lost'];
 
 app.get('/api/leads', requireAuth, asyncRoute(async (req, res) => {
   const isAdmin = req.session.user.role === 'admin';
@@ -146,7 +155,7 @@ app.get('/api/leads', requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post('/api/leads', requireAuth, asyncRoute(async (req, res) => {
-  const { name, company, phone, email, status, value, source, notes, region, assignTo } = req.body || {};
+  const { name, company, website, phone, email, linkedin, serviceInterest, demoDate, status, value, source, notes, region, assignTo } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Lead name is required' });
 
   const isAdmin = req.session.user.role === 'admin';
@@ -167,6 +176,10 @@ app.post('/api/leads', requireAuth, asyncRoute(async (req, res) => {
     ownerName,
     name: name.trim(),
     company: (company || '').trim(),
+    website: (website || '').trim(),
+    linkedin: (linkedin || '').trim(),
+    serviceInterest: (serviceInterest || '').trim(),
+    demoDate: demoDate || null,
     phone: (phone || '').trim(),
     email: (email || '').trim(),
     status: LEAD_STATUSES.includes(status) ? status : 'New',
@@ -194,10 +207,14 @@ app.put('/api/leads/:id', requireAuth, asyncRoute(async (req, res) => {
   if (!canEditLead(req, existing)) return res.status(403).json({ error: 'Not your lead' });
 
   const isAdmin = req.session.user.role === 'admin';
-  const { name, company, phone, email, status, value, source, notes, region, assignTo } = req.body || {};
+  const { name, company, website, phone, email, linkedin, serviceInterest, demoDate, status, value, source, notes, region, assignTo } = req.body || {};
   const fields = {};
   if (name !== undefined) fields.name = name.trim();
   if (company !== undefined) fields.company = company.trim();
+  if (website !== undefined) fields.website = website.trim();
+  if (linkedin !== undefined) fields.linkedin = linkedin.trim();
+  if (serviceInterest !== undefined) fields.serviceInterest = serviceInterest.trim();
+  if (demoDate !== undefined) fields.demoDate = demoDate || null;
   if (phone !== undefined) fields.phone = phone.trim();
   if (email !== undefined) fields.email = email.trim();
   if (value !== undefined) fields.value = Number(value) || 0;
@@ -343,6 +360,32 @@ app.post('/api/leads/bulk-upload', requireAdmin, upload.single('file'), asyncRou
 
   const inserted = await db.createLeadsBulk(toImport);
   res.status(201).json({ inserted: inserted.length, skipped, total: rows.length });
+}));
+
+// ---------- shared proposal library ----------
+app.get('/api/proposals', requireAuth, asyncRoute(async (_req, res) => {
+  const proposals = await db.listProposals();
+  res.json({ proposals: proposals.map(p => ({ id: p.id, filename: p.filename, uploadedBy: p.uploaded_by, uploadedAt: p.uploaded_at, url: `/api/proposals/${p.id}/download` })) });
+}));
+app.post('/api/proposals', requireAuth, proposalUpload.single('file'), asyncRoute(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Choose a proposal file first' });
+  const p = await db.addProposal({ filename: path.basename(req.file.originalname), storedName: req.file.filename, uploadedBy: req.session.user.name });
+  res.status(201).json({ proposal: { id: p.id, filename: p.filename, uploadedBy: p.uploaded_by, uploadedAt: p.uploaded_at, url: `/api/proposals/${p.id}/download` } });
+}));
+app.get('/api/proposals/:id/download', requireAuth, asyncRoute(async (req, res) => {
+  const p = (await db.listProposals()).find(item => item.id === req.params.id);
+  if (!p) return res.status(404).json({ error: 'Proposal not found' });
+  const filePath = path.join(proposalDir, path.basename(p.stored_name));
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Proposal file is missing from server storage' });
+  res.download(filePath, p.filename);
+}));
+app.delete('/api/proposals/:id', requireAuth, asyncRoute(async (req, res) => {
+  if (req.session.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required to delete shared proposals' });
+  const p = await db.deleteProposal(req.params.id);
+  if (!p) return res.status(404).json({ error: 'Proposal not found' });
+  const filePath = path.join(proposalDir, path.basename(p.stored_name));
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  res.json({ ok: true });
 }));
 
 // ---------- dashboard stats ----------

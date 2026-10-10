@@ -110,3 +110,12 @@ tr:last-child td{border-bottom:none;}
   .sidebar-foot{display:none;}
   .main{padding:18px;}
 }
+
+/* CRM usability improvements */
+.clickable-card{cursor:pointer;transition:transform .15s,border-color .15s}.clickable-card:hover{border-color:var(--gold);transform:translateY(-2px)}
+.lead-name-link{padding:0;border:0;background:transparent;color:var(--gold2);font:inherit;font-weight:700;text-align:left;cursor:pointer}.lead-name-link:hover{text-decoration:underline}
+.table-link{color:var(--gold2);text-decoration:none}.table-link:hover{text-decoration:underline}
+.convo-cell{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge-DemoBooked{background:rgba(122,184,255,.16);color:var(--blue)}.badge-DemoCompleted{background:rgba(126,231,135,.16);color:var(--green)}.badge-NoShow{background:rgba(255,128,128,.15);color:var(--red)}
+.panel{overflow-x:auto}.panel table{table-layout:auto}.main{overflow-x:hidden}.panel{max-width:100%;min-width:0}.proposal-upload{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:16px 0}.proposal-upload input{max-width:100%;color:var(--muted)}.muted-copy{color:var(--muted);font-size:.86rem;line-height:1.5}
+@media(max-width:900px){.main{padding:18px 14px}.panel{overflow-x:auto}.panel table{min-width:1000px}.topbar{gap:12px;align-items:flex-start}.topbar h1{font-size:1.2rem}}

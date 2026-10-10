@@ -106,3 +106,15 @@ Click **+ Add Lead** → fill in the lead → pick its **Region** (the Deal Valu
 3. Pick the **Region** for this batch (e.g. India) and the **team member** to assign all these leads to.
 4. Choose your file and click **Upload & Import**. You'll see how many rows were imported and a list of any skipped rows (and why).
 5. If your file already has a per-row "Region" column (e.g. some leads are India, some are US), that column wins over the batch Region you picked — handy for a mixed-region export in one file.
+
+
+## CRM enhancements included in this package
+
+- Lead statuses now include **Demo Booked**, **Demo Completed**, and **No Show**.
+- Lead records include website, LinkedIn URL, service interest, and demo/follow-up date fields.
+- The lead name opens its record; website, phone, email, and LinkedIn are separate clickable links.
+- Dashboard stage and region cards are clickable filters.
+- Proposal Library lets signed-in users upload and download shared proposal documents; only admins can delete them. Upload limit is 20 MB per file.
+- Calendar is a chronological view of lead demo/follow-up dates. It is not synced with Google Calendar or Outlook.
+
+**Important file-storage note:** proposal file bytes are stored under `data/proposals/` on the application server, while their metadata is in Postgres. On hosting platforms with ephemeral local storage (including typical free web-service deployments), uploaded proposal files can disappear after a redeploy/restart. For production use, configure persistent disk or object storage and maintain backups. This package deliberately excludes `.env`, `node_modules`, and Git internals; set your own environment variables and run `npm install` before starting.

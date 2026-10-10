@@ -50,6 +50,11 @@ async function init() {
   // Safe to run every boot — IF NOT EXISTS makes it a no-op once applied.
   await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT 'India';`);
   await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'INR';`);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS website TEXT NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS linkedin TEXT NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_interest TEXT NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS demo_date TIMESTAMPTZ;`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS proposals (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), filename TEXT NOT NULL, stored_name TEXT NOT NULL, uploaded_by TEXT NOT NULL, uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
 
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM users');
   if (rows[0].n === 0) {
@@ -98,12 +103,12 @@ async function getLead(id) {
 }
 async function createLead(lead) {
   const { rows } = await pool.query(
-    `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity, region, currency)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity, region, currency, website, linkedin, service_interest, demo_date)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
     [
       lead.ownerId, lead.ownerName, lead.name, lead.company, lead.phone, lead.email,
       lead.status, lead.value, lead.source, lead.notes, JSON.stringify(lead.activity),
-      lead.region, lead.currency,
+      lead.region, lead.currency, lead.website || '', lead.linkedin || '', lead.serviceInterest || '', lead.demoDate || null,
     ]
   );
   return rows[0];
@@ -117,12 +122,12 @@ async function createLeadsBulk(leads) {
     await client.query('BEGIN');
     for (const lead of leads) {
       const { rows } = await client.query(
-        `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity, region, currency)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+        `INSERT INTO leads (owner_id, owner_name, name, company, phone, email, status, value, source, notes, activity, region, currency, website, linkedin, service_interest, demo_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
         [
           lead.ownerId, lead.ownerName, lead.name, lead.company, lead.phone, lead.email,
           lead.status, lead.value, lead.source, lead.notes, JSON.stringify(lead.activity),
-          lead.region, lead.currency,
+          lead.region, lead.currency, lead.website || '', lead.linkedin || '', lead.serviceInterest || '', lead.demoDate || null,
         ]
       );
       inserted.push(rows[0]);
@@ -143,12 +148,12 @@ async function updateLead(id, fields) {
   const { rows } = await pool.query(
     `UPDATE leads SET name=$1, company=$2, phone=$3, email=$4, status=$5, value=$6,
        source=$7, notes=$8, activity=$9, region=$10, currency=$11,
-       owner_id=$12, owner_name=$13, updated_at=now()
-     WHERE id=$14 RETURNING *`,
+       owner_id=$12, owner_name=$13, website=$14, linkedin=$15, service_interest=$16, demo_date=$17, updated_at=now()
+     WHERE id=$18 RETURNING *`,
     [
       merged.name, merged.company, merged.phone, merged.email, merged.status, merged.value,
       merged.source, merged.notes, JSON.stringify(merged.activity), merged.region, merged.currency,
-      merged.owner_id, merged.owner_name, id,
+      merged.owner_id, merged.owner_name, merged.website || '', merged.linkedin || '', merged.service_interest || merged.serviceInterest || '', merged.demo_date || merged.demoDate || null, id,
     ]
   );
   return rows[0];
@@ -162,4 +167,7 @@ module.exports = {
   init,
   getUserByEmployeeId, listUsers, createUser, deleteUser,
   listLeads, getLead, createLead, createLeadsBulk, updateLead, deleteLead,
+  async listProposals() { const { rows } = await pool.query('SELECT * FROM proposals ORDER BY uploaded_at DESC'); return rows; },
+  async addProposal(p) { const { rows } = await pool.query('INSERT INTO proposals(filename, stored_name, uploaded_by) VALUES ($1,$2,$3) RETURNING *', [p.filename,p.storedName,p.uploadedBy]); return rows[0]; },
+  async deleteProposal(id) { const { rows } = await pool.query('DELETE FROM proposals WHERE id=$1 RETURNING *', [id]); return rows[0] || null; },
 };
